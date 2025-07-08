@@ -41,3 +41,30 @@ sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/hea
 sudo systemctl daemon-reload
 sudo systemctl enable wlan1-up.service
 sudo systemctl start wlan1-up.service
+
+
+sudo tee /etc/hostapd/hostapd.conf > /dev/null << 'EOF'
+interface=wlan1
+driver=nl80211
+ssid=Clifjumper2
+wpa_passphrase=partizan
+hw_mode=g
+channel=6
+ieee80211n=1
+wmm_enabled=1
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+EOF
+
+
+grep -qF 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' /etc/default/hostapd 2>/dev/null || echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' | sudo tee -a /etc/default/hostapd >/dev/null
+
+sudo systemctl unmask hostapd
+sudo systemctl enable hostapd
+sudo systemctl start hostapd
+
+echo "\e[36mThere should be 'type AP' in the text bellow!\e[0m"
+iw dev wlan1 info
