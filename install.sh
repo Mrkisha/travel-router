@@ -10,7 +10,7 @@ echo "Starting router installation..."
 
 echo "Installing necessary packages..."
 sudo apt-get update && sudo apt-get upgrade -y
-sudo apt-get install hostapd iptables-persistent git -y
+sudo apt-get install hostapd iptables-persistent git dhcpcd5 -y
 
 # Check if Docker is installed, if not, install it
 if ! command -v docker >/dev/null 2>&1; then
