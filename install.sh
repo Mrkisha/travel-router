@@ -1,12 +1,32 @@
 #!/bin/bash
 
 set -e
+
+ENV_FILE=".env"
+
+# Load env vars if file exists
+if [ -f "$ENV_FILE" ]; then
+  # shellcheck disable=SC1091
+  source "$ENV_FILE"
+fi
+
+# Use args if provided, else fall back to env vars
+HOST_WIFI="${1:-${HOST_WIFI:-Hotel}}"
+HOST_WIFI_PASSWORD="${2:-${HOST_WIFI_PASSWORD:-Room}}"
+
 echo "Starting router installation..."
 
-# : "${MEDIA_FILE_WORKSPACE:=media}"
-# : "${MEDIA_APP_WORKSPACE:=apps}"
-# echo "MEDIA_FILE_WORKSPACE is set to: $MEDIA_FILE_WORKSPACE"
-# echo "MEDIA_APP_WORKSPACE is set to: $MEDIA_APP_WORKSPACE"
+if [ -z "$HOST_WIFI" ] || [ -z "$HOST_WIFI_PASSWORD" ]; then
+  echo "Usage: $0 <HOST_WIFI> <HOST_WIFI_PASSWORD>"
+  echo "Or provide HOST_WIFI and HOST_WIFI_PASSWORD in $ENV_FILE as:"
+  echo "HOST_WIFI=your_wifi_ssid"
+  echo "HOST_WIFI_PASSWORD=your_wifi_password"
+
+  exit 1
+fi
+
+echo "WIFI=$HOST_WIFI"
+echo "PASSWORD=$HOST_WIFI_PASSWORD"
 
 echo "Installing necessary packages..."
 sudo apt-get update && sudo apt-get upgrade -y
@@ -25,16 +45,13 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 
-grep -q '^net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
+grep -qxF 'net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
+grep -qxF 'net.ipv6.conf.all.forwarding=1' /etc/sysctl.conf || echo 'net.ipv6.conf.all.forwarding=1' | sudo tee -a /etc/sysctl.conf
 # To apply it immediately without reboot
 sudo sysctl -w net.ipv4.ip_forward=1
+sudo sysctl -w net.ipv6.conf.all.forwarding=1
 # To apply it permanently
 sudo sysctl -p
-
-echo "Setup dhcpcd..."
-sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/dhcpcd.conf -o /etc/dhcpcd.conf
-sudo systemctl enable dhcpcd
-sudo systemctl restart dhcpcd
 
 echo "Stup wlan1 up service..."
 sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/wlan1-up.service -o /etc/systemd/system/wlan1-up.service
@@ -59,8 +76,6 @@ wpa_key_mgmt=WPA-PSK
 rsn_pairwise=CCMP
 EOF
 
-sudo systemctl disable --now dnsmasq
-
 grep -qF 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' /etc/default/hostapd 2>/dev/null || echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' | sudo tee -a /etc/default/hostapd >/dev/null
 
 sudo systemctl unmask hostapd
@@ -70,9 +85,43 @@ sudo systemctl start hostapd
 echo "\e[36mThere should be 'type AP' in the text bellow!\e[0m"
 iw dev wlan1 info
 
-grep -qxF 'net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
-grep -qxF 'net.ipv6.conf.all.forwarding=1' /etc/sysctl.conf || echo 'net.ipv6.conf.all.forwarding=1' | sudo tee -a /etc/sysctl.conf
-
 echo "Setting up iptables rules..."
 sudo iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE
 sudo iptables-save | sudo tee /etc/iptables/rules.v4
+
+
+echo "Add NAT masquerade rule..."
+sudo iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
+
+echo "Forward wlan1 subnet traffic..."
+sudo iptables -A FORWARD -i wlan1 -o wg0 -j ACCEPT
+sudo iptables -A FORWARD -i wg0 -o wlan1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+sudo netfilter-persistent save
+
+
+# Change WiFi hotspot configuration
+sudo tee /etc/wpa_supplicant/wpa_supplicant.conf > /dev/null <<EOF
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country=US
+
+network={
+    ssid="WifiHotspot"
+    psk="securePassword"
+}
+EOF
+
+sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/changewifi.sh -o changewifi.sh
+sudo chmod +x changewifi.sh
+
+sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/router.service -o /etc/systemd/system/router.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable router.service
+sudo systemctl start router.service
+
+sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/docker-compose.yaml -o docker-compose.yaml
+
+echo "Rebooting the system to apply changes..."
+sudo reboot
