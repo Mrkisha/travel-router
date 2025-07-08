@@ -59,6 +59,7 @@ wpa_key_mgmt=WPA-PSK
 rsn_pairwise=CCMP
 EOF
 
+sudo systemctl disable --now dnsmasq
 
 grep -qF 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' /etc/default/hostapd 2>/dev/null || echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' | sudo tee -a /etc/default/hostapd >/dev/null
 
