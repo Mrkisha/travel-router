@@ -123,5 +123,9 @@ sudo systemctl start router.service
 
 sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/docker-compose.yaml -o docker-compose.yaml
 
+echo "\e[36mCreate a file /etc/wireguard/wg0.conf (sudo nano /etc/wireguard/wg0.conf)\e[0m"
+echo "\e[36madd client config from you Wireguard server\e[0m"
+echo "\e[36mand then enable it by running: sudo systemctl enable wg-quick@wg0\e[0m"
+
 echo "Please reboot the system to apply changes..."
 echo "Run: sudo reboot"
