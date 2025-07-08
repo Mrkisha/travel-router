@@ -40,3 +40,4 @@ echo "Stup wlan1 up service..."
 sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/wlan1-up.service -o /etc/systemd/system/wlan1-up.service
 sudo systemctl daemon-reload
 sudo systemctl enable wlan1-up.service
+sudo systemctl start wlan1-up.service
