@@ -31,4 +31,5 @@ sudo sysctl -w net.ipv4.ip_forward=1
 # To apply it permanently
 sudo sysctl -p
 
-sudp cp ./dhcpcd.conf /etc/dhcpcd.conf
+sudo cp ./dhcpcd.conf /etc/dhcpcd.conf
+sudo systemctl restart dhcpcd
