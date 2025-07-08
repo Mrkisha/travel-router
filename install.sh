@@ -123,5 +123,5 @@ sudo systemctl start router.service
 
 sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/docker-compose.yaml -o docker-compose.yaml
 
-echo "Rebooting the system to apply changes..."
-sudo reboot
+echo "Please reboot the system to apply changes..."
+echo "Run: sudo reboot"
