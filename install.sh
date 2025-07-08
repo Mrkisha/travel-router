@@ -68,3 +68,8 @@ sudo systemctl start hostapd
 
 echo "\e[36mThere should be 'type AP' in the text bellow!\e[0m"
 iw dev wlan1 info
+
+
+echo "Setting up iptables rules..."
+sudo iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE
+sudo iptables-save | sudo tee /etc/iptables/rules.v4
