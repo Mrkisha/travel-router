@@ -70,6 +70,8 @@ sudo systemctl start hostapd
 echo "\e[36mThere should be 'type AP' in the text bellow!\e[0m"
 iw dev wlan1 info
 
+grep -qxF 'net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
+grep -qxF 'net.ipv6.conf.all.forwarding=1' /etc/sysctl.conf || echo 'net.ipv6.conf.all.forwarding=1' | sudo tee -a /etc/sysctl.conf
 
 echo "Setting up iptables rules..."
 sudo iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE
