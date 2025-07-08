@@ -60,11 +60,11 @@ sudo systemctl enable wlan1-up.service
 sudo systemctl start wlan1-up.service
 
 
-sudo tee /etc/hostapd/hostapd.conf > /dev/null << 'EOF'
+sudo tee /etc/hostapd/hostapd.conf > /dev/null << EOF
 interface=wlan1
 driver=nl80211
-ssid=Clifjumper2
-wpa_passphrase=partizan
+ssid=${HOST_WIFI}
+wpa_passphrase=${HOST_WIFI_PASSWORD}
 hw_mode=g
 channel=6
 ieee80211n=1
