@@ -112,7 +112,7 @@ network={
 }
 EOF
 
-sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/changewifi.sh -o changewifi.sh
+curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/changewifi.sh -o changewifi.sh
 sudo chmod +x changewifi.sh
 
 sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/router.service -o /etc/systemd/system/router.service
@@ -121,12 +121,10 @@ sudo systemctl daemon-reload
 sudo systemctl enable router.service
 sudo systemctl start router.service
 
-sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/docker-compose.yaml -o docker-compose.yaml
+curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/docker-compose.yaml -o docker-compose.yaml
 
-echo "\e[36mCreate a file /etc/wireguard/wg0.conf\e[0m"
-echo "Run: sudo mkdir -p /etc/wireguard && sudo nano /etc/wireguard/wg0.conf"
-echo "\e[36madd client config from you Wireguard server\e[0m"
-echo "\e[36mand then enable it by running: sudo systemctl enable wg-quick@wg0\e[0m"
+echo "\e[36mCreate a file ~/.wireguard/config/wg0.conf\e[0m"
+echo "Run: sudo mkdir -p ~/.wireguard/config && sudo nano ~/.wireguard/config/wg0.conf"
 
 echo "Please reboot the system to apply changes..."
 echo "Run: sudo reboot"
