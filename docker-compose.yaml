@@ -1,0 +1,80 @@
+networks:
+  homelab:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.25.25.0/24
+  opencloud:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.26.26.0/24
+
+services:
+  wireguard:
+    image: linuxserver/wireguard:1.0.20210914
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    dns:
+      - 10.25.25.4 # Pi-hole DNS server
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+      - SERVERURL=homelab.miloszivanovic.me   # Don't use domain unless port 51820 is forwarded correctly
+      - SERVERPORT=51820
+      - PEERS=5,P50,Zora,Dusan,Mira,Ljiska
+      # DNS of pihole server, DNS managed by Pi-hole
+      - PEERDNS=10.25.25.4                 # https://adguard-dns.io/kb/general/dns-providers/#standard
+      - INTERNAL_SUBNET=10.50.50.0/24      # Use a different subnet to avoid conflicts with the homelab network
+      - ALLOWEDIPS=0.0.0.0/0, ::/0
+      - PERSISTENTKEEPALIVE_PEERS=all      # Set to 10 to keep the connection alive, useful for mobile clients
+      - LOG_CONFS=true                     # Set to true to log the client configurations in terminal (QR code in terminal)
+    ports:
+      - "51820:51820/udp"
+    volumes:
+      - ../.wireguard/config:/config
+      - /lib/modules:/lib/modules
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv6.conf.all.forwarding=1
+    restart: unless-stopped
+    networks:
+      homelab:
+        ipv4_address: 10.25.25.2
+
+  pihole:
+    image: pihole/pihole:2025.06.2
+    container_name: pihole
+    dns:
+      - 127.0.0.1
+      - 9.9.9.9
+    environment:
+      - TZ=Europe/Berlin
+      - FTLCONF_webserver_api_password=homelab
+      # Config file in pihole is /etc/pihole/pihole.toml
+      # Docs: https://docs.pi-hole.net/docker/configuration/
+      # - FTLCONF_misc_etc_dnsmasq_d=true # Enable custom DNS configuration, but it wont show in the UI
+      # point to caddy server, not to pihole (dns server)
+      # https://docs.pi-hole.net/docker/upgrading/v5-v6/?h=rev_server_cidr#custom-dnsmasq-config-files
+      # - FTLCONF_misc_dnsmasq_lines=address=/pihole.miloszivanovic.me/10.25.25.3;address=/nextcloud.miloszivanovic.me/10.25.25.3;address=/immich.miloszivanovic.me/10.25.25.3;address=/test2.miloszivanovic.me/10.25.25.3;address=/test.miloszivanovic.me/10.25.25.3
+      # If using Docker's default `bridge` network setting the dns listening mode should be set to 'all'
+      - FTLCONF_dns_listeningMode='all'
+      #https://docs.pi-hole.net/docker/configuration/?h=ftlconf_dns_dnssec#configuring-ftl-via-the-environment
+      - FTLCONF_dns_upstreams=9.9.9.9;149.112.112.112
+    volumes:
+      # - ./pihole/config/etc-pihole:/etc/pihole
+      - ./pihole/config/etc-dnsmasq.d:/etc/dnsmasq.d
+      # - ../nextcloud/html:/var/www/nextcloud:ro
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8082:80"
+    restart: unless-stopped
+    networks:
+      homelab:
+        ipv4_address: 10.25.25.4
