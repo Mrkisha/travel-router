@@ -5,30 +5,30 @@ services:
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
-    dns:
-      - 10.25.25.4 # Pi-hole DNS server
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Berlin
-      - SERVERURL=homelab.miloszivanovic.me   # Don't use domain unless port 51820 is forwarded correctly
-      - SERVERPORT=51820
-      - PEERS=5,P50,Zora,Dusan,Mira,Ljiska
-      # DNS of pihole server, DNS managed by Pi-hole
-      - PEERDNS=10.25.25.4                 # https://adguard-dns.io/kb/general/dns-providers/#standard
-      - INTERNAL_SUBNET=10.50.50.0/24      # Use a different subnet to avoid conflicts with the homelab network
-      - ALLOWEDIPS=0.0.0.0/0, ::/0
-      - PERSISTENTKEEPALIVE_PEERS=all      # Set to 10 to keep the connection alive, useful for mobile clients
-      - LOG_CONFS=true                     # Set to true to log the client configurations in terminal (QR code in terminal)
-    ports:
-      - "51820:51820/udp"
+      # - SERVERURL=homelab.miloszivanovic.me   # Don't use domain unless port 51820 is forwarded correctly
+      # - SERVERPORT=51820
+      # - PEERS=5,P50,Zora,Dusan,Mira,Ljiska
+      # # DNS of pihole server, DNS managed by Pi-hole
+      # - PEERDNS=10.25.25.4                 # https://adguard-dns.io/kb/general/dns-providers/#standard
+      # - INTERNAL_SUBNET=10.50.50.0/24      # Use a different subnet to avoid conflicts with the homelab network
+      # - ALLOWEDIPS=0.0.0.0/0, ::/0
+      # - PERSISTENTKEEPALIVE_PEERS=all      # Set to 10 to keep the connection alive, useful for mobile clients
+      # - LOG_CONFS=true                     # Set to true to log the client configurations in terminal (QR code in terminal)
+    # ports:
+    #   - "51820:51820/udp" # needed only for wireguard server, not for clients
     volumes:
-      - ./.wireguard/config:/config
+      - .wireguard/config:/config
       - /lib/modules:/lib/modules
     sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
       - net.ipv6.conf.all.forwarding=1
     restart: unless-stopped
+    network_mode: "host"
 
   pihole:
     image: pihole/pihole:2025.06.2
