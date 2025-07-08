@@ -29,11 +29,11 @@ CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
 sudo bash -c "cat > $CONF" <<EOF
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
-country=US
+country=RS
 
 network={
-    ssid=\"$WIFI\"
-    psk=\"$PASSWORD\"
+    ssid="$WIFI"
+    psk="$PASSWORD"
 }
 EOF
 
