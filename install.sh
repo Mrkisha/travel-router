@@ -10,7 +10,7 @@ echo "Starting router installation..."
 
 echo "Installing necessary packages..."
 sudo apt-get update && sudo apt-get upgrade -y
-sudo apt-get install hostapd iptables-persistent -y
+sudo apt-get install hostapd iptables-persistent git -y
 
 # Check if Docker is installed, if not, install it
 if ! command -v docker >/dev/null 2>&1; then
@@ -30,3 +30,5 @@ grep -q '^net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1
 sudo sysctl -w net.ipv4.ip_forward=1
 # To apply it permanently
 sudo sysctl -p
+
+sudp cp ./dhcpcd.conf /etc/dhcpcd.conf

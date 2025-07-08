@@ -4,11 +4,6 @@ networks:
     ipam:
       config:
         - subnet: 10.25.25.0/24
-  opencloud:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.26.26.0/24
 
 services:
   wireguard:
@@ -64,6 +59,12 @@ services:
       - FTLCONF_dns_listeningMode='all'
       #https://docs.pi-hole.net/docker/configuration/?h=ftlconf_dns_dnssec#configuring-ftl-via-the-environment
       - FTLCONF_dns_upstreams=9.9.9.9;149.112.112.112
+      # https://docs.pi-hole.net/docker/upgrading/v5-v6/?h=dhcp_active#dhcp-variables
+      - FTLCONF_dhcp_active=true
+      - FTLCONF_dhcp_start=192.168.50.100
+      - FTLCONF_dhcp_end=192.168.50.200
+      - FTLCONF_dhcp_routers=192.168.50.1
+      - FTLCONF_dhcp_leaseTime=24h
     volumes:
       # - ./pihole/config/etc-pihole:/etc/pihole
       - ./pihole/config/etc-dnsmasq.d:/etc/dnsmasq.d
