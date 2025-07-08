@@ -32,5 +32,5 @@ sudo sysctl -w net.ipv4.ip_forward=1
 sudo sysctl -p
 
 
-curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/dhcpcd.conf -o /etc/dhcpcd.conf
+sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/dhcpcd.conf -o /etc/dhcpcd.conf
 sudo systemctl restart dhcpcd
