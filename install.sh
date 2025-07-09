@@ -87,11 +87,16 @@ iw dev wlan1 info
 
 echo "Setting up iptables rules..."
 sudo iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE
-sudo iptables-save | sudo tee /etc/iptables/rules.v4
-
+# sudo iptables-save | sudo tee /etc/iptables/rules.v4
 
 echo "Add NAT masquerade rule..."
 sudo iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
+
+sudo tee /etc/dhcpcd.conf > /dev/null << EOF
+interface wlan1
+    static ip_address=192.168.50.1/24
+    nohook wpa_supplicant
+EOF
 
 echo "Forward wlan1 subnet traffic..."
 sudo iptables -A FORWARD -i wlan1 -o wg0 -j ACCEPT
@@ -99,6 +104,10 @@ sudo iptables -A FORWARD -i wg0 -o wlan1 -m state --state RELATED,ESTABLISHED -j
 
 sudo netfilter-persistent save
 
+# Tell NetworkManager to Completely Ignore wlan1
+grep -q '^\[keyfile\]' /etc/NetworkManager/NetworkManager.conf || echo '[keyfile]' | sudo tee -a /etc/NetworkManager/NetworkManager.conf; grep -q '^unmanaged-devices=interface-name:wlan1' /etc/NetworkManager/NetworkManager.conf || echo 'unmanaged-devices=interface-name:wlan1' | sudo tee -a /etc/NetworkManager/NetworkManager.conf
+
+sudo systemctl restart NetworkManager
 
 # Change WiFi hotspot configuration
 sudo tee /etc/wpa_supplicant/wpa_supplicant.conf > /dev/null <<EOF
