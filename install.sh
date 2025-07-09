@@ -47,9 +47,12 @@ fi
 
 grep -qxF 'net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
 grep -qxF 'net.ipv6.conf.all.forwarding=1' /etc/sysctl.conf || echo 'net.ipv6.conf.all.forwarding=1' | sudo tee -a /etc/sysctl.conf
+grep -qxF 'net.ipv4.conf.all.src_valid_mark=1' /etc/sysctl.conf || echo 'net.ipv4.conf.all.src_valid_mark=1' | sudo tee -a /etc/sysctl.conf
+
 # To apply it immediately without reboot
 sudo sysctl -w net.ipv4.ip_forward=1
 sudo sysctl -w net.ipv6.conf.all.forwarding=1
+sudo sysctl -w net.ipv4.conf.all.src_valid_mark=1
 # To apply it permanently
 sudo sysctl -p
 
