@@ -1,0 +1,149 @@
+#!/bin/bash
+
+set -e
+
+ENV_FILE=".env"
+
+# Load env vars if file exists
+if [ -f "$ENV_FILE" ]; then
+  # shellcheck disable=SC1091
+  source "$ENV_FILE"
+fi
+
+# Use args if provided, else fall back to env vars
+HOST_WIFI="${1:-${HOST_WIFI:-Hotel}}"
+HOST_WIFI_PASSWORD="${2:-${HOST_WIFI_PASSWORD:-Room}}"
+
+echo "Starting router installation..."
+
+if [ -z "$HOST_WIFI" ] || [ -z "$HOST_WIFI_PASSWORD" ]; then
+  echo "Usage: $0 <HOST_WIFI> <HOST_WIFI_PASSWORD>"
+  echo "Or provide HOST_WIFI and HOST_WIFI_PASSWORD in $ENV_FILE as:"
+  echo "HOST_WIFI=your_wifi_ssid"
+  echo "HOST_WIFI_PASSWORD=your_wifi_password"
+
+  exit 1
+fi
+
+echo "WIFI=$HOST_WIFI"
+echo "PASSWORD=$HOST_WIFI_PASSWORD"
+
+echo "Installing necessary packages..."
+sudo apt-get update && sudo apt-get upgrade -y
+sudo DEBIAN_FRONTEND=noninteractive apt install hostapd iptables-persistent git dhcpcd5 -y
+
+# Check if Docker is installed, if not, install it
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Docker is NOT installed. Running installation script..."
+
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sudo sh get-docker.sh
+
+    rm get-docker.sh
+
+    sudo usermod -aG docker $USER
+fi
+
+
+grep -qxF 'net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
+grep -qxF 'net.ipv6.conf.all.forwarding=1' /etc/sysctl.conf || echo 'net.ipv6.conf.all.forwarding=1' | sudo tee -a /etc/sysctl.conf
+grep -qxF 'net.ipv4.conf.all.src_valid_mark=1' /etc/sysctl.conf || echo 'net.ipv4.conf.all.src_valid_mark=1' | sudo tee -a /etc/sysctl.conf
+
+# To apply it immediately without reboot
+sudo sysctl -w net.ipv4.ip_forward=1
+sudo sysctl -w net.ipv6.conf.all.forwarding=1
+sudo sysctl -w net.ipv4.conf.all.src_valid_mark=1
+# To apply it permanently
+sudo sysctl -p
+
+echo "Stup wlan1 up service..."
+sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/wlan1-up.service -o /etc/systemd/system/wlan1-up.service
+sudo systemctl daemon-reload
+sudo systemctl enable wlan1-up.service
+sudo systemctl start wlan1-up.service
+
+
+sudo tee /etc/hostapd/hostapd.conf > /dev/null << EOF
+interface=wlan1
+driver=nl80211
+ssid=${HOST_WIFI}
+wpa_passphrase=${HOST_WIFI_PASSWORD}
+hw_mode=g
+channel=6
+ieee80211n=1
+wmm_enabled=1
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+EOF
+
+grep -qF 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' /etc/default/hostapd 2>/dev/null || echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' | sudo tee -a /etc/default/hostapd >/dev/null
+
+sudo systemctl unmask hostapd
+sudo systemctl enable hostapd
+sudo systemctl start hostapd
+
+echo "\e[36mThere should be 'type AP' in the text bellow!\e[0m"
+iw dev wlan1 info
+
+echo "Setting up iptables rules..."
+sudo iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE
+# sudo iptables-save | sudo tee /etc/iptables/rules.v4
+
+echo "Add NAT masquerade rule..."
+sudo iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
+
+sudo tee /etc/dhcpcd.conf > /dev/null << EOF
+interface wlan1
+    static ip_address=192.168.50.1/24
+    nohook wpa_supplicant
+EOF
+
+echo "Forward wlan1 subnet traffic..."
+sudo iptables -A FORWARD -i wlan1 -o wg0 -j ACCEPT
+sudo iptables -A FORWARD -i wg0 -o wlan1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+sudo netfilter-persistent save
+
+
+# Change WiFi hotspot configuration
+sudo tee /etc/wpa_supplicant/wpa_supplicant.conf > /dev/null <<EOF
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country=RS
+
+network={
+    ssid="WifiHotspot"
+    psk="securePassword"
+}
+EOF
+
+# dont let docker mess with wlan0
+# command to restore wlan0 
+# sudo ip route add default via 192.168.1.1 dev wlan0
+sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+{
+  "iptables": false
+}
+EOF
+
+sudo systemctl restart docker
+
+curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/changewifi.sh -o changewifi.sh
+sudo chmod +x changewifi.sh
+
+sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/router.service -o /etc/systemd/system/router.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable router.service
+sudo systemctl start router.service
+
+curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/docker-compose.yaml -o docker-compose.yaml
+
+echo "\e[36mCreate a file ~/.wireguard/config/wg0.conf\e[0m"
+echo "Run: sudo mkdir -p ~/.wireguard/config && sudo nano ~/.wireguard/config/wg0.conf"
+
+echo "Please reboot the system to apply changes..."
+echo "Run: sudo reboot"

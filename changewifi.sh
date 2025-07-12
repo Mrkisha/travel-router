@@ -24,20 +24,4 @@ if [ -z "$WIFI" ] || [ -z "$PASSWORD" ]; then
   exit 1
 fi
 
-CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
-
-sudo bash -c "cat > $CONF" <<EOF
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-country=RS
-
-network={
-    ssid="$WIFI"
-    psk="$PASSWORD"
-}
-EOF
-
-sudo chmod 600 "$CONF"
-sudo wpa_cli -i wlan1 reconfigure
-
-echo "Wi-Fi configuration updated. Attempting to reconnect to $WIFI on wlan1."
+sudo nmcli dev wifi connect "$WIFI" password "$PASSWORD" ifname wlan0

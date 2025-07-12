@@ -1,82 +1,66 @@
-#!/bin/bash
-
-set -e
-
-ENV_FILE=".env"
-
-# Load env vars if file exists
-if [ -f "$ENV_FILE" ]; then
-  # shellcheck disable=SC1091
-  source "$ENV_FILE"
-fi
-
-# Use args if provided, else fall back to env vars
-HOST_WIFI="${1:-${HOST_WIFI:-Hotel}}"
-HOST_WIFI_PASSWORD="${2:-${HOST_WIFI_PASSWORD:-Room}}"
-
-echo "Starting router installation..."
-
-if [ -z "$HOST_WIFI" ] || [ -z "$HOST_WIFI_PASSWORD" ]; then
-  echo "Usage: $0 <HOST_WIFI> <HOST_WIFI_PASSWORD>"
-  echo "Or provide HOST_WIFI and HOST_WIFI_PASSWORD in $ENV_FILE as:"
-  echo "HOST_WIFI=your_wifi_ssid"
-  echo "HOST_WIFI_PASSWORD=your_wifi_password"
-
-  exit 1
-fi
-
-echo "WIFI=$HOST_WIFI"
-echo "PASSWORD=$HOST_WIFI_PASSWORD"
-
-echo "Installing necessary packages..."
 sudo apt-get update && sudo apt-get upgrade -y
-sudo apt-get install hostapd iptables-persistent git dhcpcd5 -y
+sudo DEBIAN_FRONTEND=noninteractive apt install hostapd iptables-persistent git dhcpcd5 -y
 
-# Check if Docker is installed, if not, install it
-if ! command -v docker >/dev/null 2>&1; then
-    echo "Docker is NOT installed. Running installation script..."
 
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sudo sh get-docker.sh
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
 
-    rm get-docker.sh
+rm get-docker.sh
 
-    sudo usermod -aG docker $USER
-fi
-
+sudo usermod -aG docker $USER
 
 grep -qxF 'net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
-grep -qxF 'net.ipv6.conf.all.forwarding=1' /etc/sysctl.conf || echo 'net.ipv6.conf.all.forwarding=1' | sudo tee -a /etc/sysctl.conf
 grep -qxF 'net.ipv4.conf.all.src_valid_mark=1' /etc/sysctl.conf || echo 'net.ipv4.conf.all.src_valid_mark=1' | sudo tee -a /etc/sysctl.conf
+grep -qxF 'net.ipv6.conf.all.forwarding=1' /etc/sysctl.conf || echo 'net.ipv6.conf.all.forwarding=1' | sudo tee -a /etc/sysctl.conf
 
-# To apply it immediately without reboot
+
 sudo sysctl -w net.ipv4.ip_forward=1
-sudo sysctl -w net.ipv6.conf.all.forwarding=1
 sudo sysctl -w net.ipv4.conf.all.src_valid_mark=1
-# To apply it permanently
+sudo sysctl -w net.ipv6.conf.all.forwarding=1
 sudo sysctl -p
 
-echo "Stup wlan1 up service..."
-sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/wlan1-up.service -o /etc/systemd/system/wlan1-up.service
-sudo systemctl daemon-reload
-sudo systemctl enable wlan1-up.service
-sudo systemctl start wlan1-up.service
+grep -q '^\[keyfile\]' /etc/NetworkManager/NetworkManager.conf || echo -e '\n[keyfile]' | sudo tee -a /etc/NetworkManager/NetworkManager.conf; grep -q '^unmanaged-devices=interface-name:wlan1' /etc/NetworkManager/NetworkManager.conf || echo 'unmanaged-devices=interface-name:wlan1' | sudo tee -a /etc/NetworkManager/NetworkManager.conf
+
+sudo systemctl restart NetworkManager
 
 
 sudo tee /etc/hostapd/hostapd.conf > /dev/null << EOF
 interface=wlan1
 driver=nl80211
-ssid=${HOST_WIFI}
-wpa_passphrase=${HOST_WIFI_PASSWORD}
+ssid=Clifjumper2
 hw_mode=g
-channel=6
-ieee80211n=1
-wmm_enabled=1
+channel=7
+wmm_enabled=0
+macaddr_acl=0
 auth_algs=1
 ignore_broadcast_ssid=0
 wpa=2
+wpa_passphrase=partizan
 wpa_key_mgmt=WPA-PSK
 rsn_pairwise=CCMP
+EOF
+
+sudo tee /etc/hostapd/hostapd.conf > /dev/null << EOF
+interface=wlan1
+driver=nl80211
+ssid=Clifjumper2
+hw_mode=a
+channel=36
+wmm_enabled=1
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_passphrase=partizan
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+country_code=RS
+ieee80211n=1
+ieee80211ac=1
+ht_capab=[HT40+]
+vht_capab=[SHORT-GI-80][RXLDPC][MAX-MPDU-7991]
+vht_oper_chwidth=1
+vht_oper_centr_freq_seg0_idx=42
 EOF
 
 grep -qF 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' /etc/default/hostapd 2>/dev/null || echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' | sudo tee -a /etc/default/hostapd >/dev/null
@@ -85,58 +69,147 @@ sudo systemctl unmask hostapd
 sudo systemctl enable hostapd
 sudo systemctl start hostapd
 
-echo "\e[36mThere should be 'type AP' in the text bellow!\e[0m"
-iw dev wlan1 info
-
-echo "Setting up iptables rules..."
-sudo iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE
-# sudo iptables-save | sudo tee /etc/iptables/rules.v4
-
-echo "Add NAT masquerade rule..."
-sudo iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
-
 sudo tee /etc/dhcpcd.conf > /dev/null << EOF
 interface wlan1
     static ip_address=192.168.50.1/24
     nohook wpa_supplicant
 EOF
 
-echo "Forward wlan1 subnet traffic..."
+# sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+# {
+#   "iptables": false
+# }
+# EOF
+
+sudo systemctl restart docker
+
+sudo tee /etc/systemd/system/fix-default-route.service > /dev/null <<EOF 
+[Unit]
+Description=Fix Default Route after Docker starts
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/ip route add default via 192.168.1.1 dev wlan0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl enable fix-default-route.service
+sudo systemctl start fix-default-route.service
+
+sudo rm -f /etc/docker/daemon.json
+sudo rm -rf /etc/systemd/system/docker.service.d/
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+
+sudo tee /etc/systemd/system/wlan1-up.service > /dev/null <<EOF 
+[Unit]
+Description=Bring up wlan1 and assign static IP
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/ip link set wlan1 up
+ExecStart=/sbin/ip addr add 192.168.50.1/24 dev wlan1
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl enable wlan1-up.service
+sudo systemctl start wlan1-up.service
+
+sudo systemctl restart hostapd
+
+sudo iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE
+sudo iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
 sudo iptables -A FORWARD -i wlan1 -o wg0 -j ACCEPT
 sudo iptables -A FORWARD -i wg0 -o wlan1 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
+sudo iptables -A FORWARD -i wlan0 -o wg0 -j ACCEPT
+sudo iptables -A FORWARD -i wg0 -o wlan0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+# internet from wlan0 i wlan1
+# sudo iptables -A FORWARD -i wlan1 -o wlan0 -j ACCEPT
+# sudo iptables -A FORWARD -i wlan0 -o wlan1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+# sudo iptables -t nat -C POSTROUTING -o wlan0 -j MASQUERADE || sudo iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE
+# =========================
+
 sudo netfilter-persistent save
 
-# Tell NetworkManager to Completely Ignore wlan1
-grep -q '^\[keyfile\]' /etc/NetworkManager/NetworkManager.conf || echo '[keyfile]' | sudo tee -a /etc/NetworkManager/NetworkManager.conf; grep -q '^unmanaged-devices=interface-name:wlan1' /etc/NetworkManager/NetworkManager.conf || echo 'unmanaged-devices=interface-name:wlan1' | sudo tee -a /etc/NetworkManager/NetworkManager.conf
+tee ~/docker-compose.yaml > /dev/null <<EOF 
+services:
+  wireguard:
+    image: linuxserver/wireguard:1.0.20210914
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+    volumes:
+      - .wireguard/config:/config
+      - /lib/modules:/lib/modules
+    restart: unless-stopped
+    network_mode: "host"
 
-sudo systemctl restart NetworkManager
-
-# Change WiFi hotspot configuration
-sudo tee /etc/wpa_supplicant/wpa_supplicant.conf > /dev/null <<EOF
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-country=US
-
-network={
-    ssid="WifiHotspot"
-    psk="securePassword"
-}
+  pihole:
+    image: pihole/pihole:2025.06.2
+    container_name: pihole
+    environment:
+      - TZ=Europe/Berlin
+      - FTLCONF_webserver_api_password=homelab
+      # Config file in pihole is /etc/pihole/pihole.toml
+      # If using Docker's default `bridge` network setting the dns listening mode should be set to 'all'
+      - FTLCONF_dns_listeningMode=ALL
+      #https://docs.pi-hole.net/docker/configuration/?h=ftlconf_dns_dnssec#configuring-ftl-via-the-environment
+      - FTLCONF_dns_upstreams=9.9.9.9;149.112.112.112
+      # https://docs.pi-hole.net/docker/upgrading/v5-v6/?h=dhcp_active#dhcp-variables
+      - FTLCONF_dhcp_active=true
+      - FTLCONF_dhcp_start=192.168.50.100
+      - FTLCONF_dhcp_end=192.168.50.200
+      - FTLCONF_dhcp_router=192.168.50.1
+      - FTLCONF_dhcp_leaseTime=24h
+      # route all subdomains to ip address, pay attention to key word server and not address
+      - FTLCONF_misc_dnsmasq_lines=server=/miloszivanovic.me/10.25.25.4
+    volumes:
+      - .pihole/config/etc-dnsmasq.d:/etc/dnsmasq.d
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    network_mode: "host"
 EOF
 
-curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/changewifi.sh -o changewifi.sh
-sudo chmod +x changewifi.sh
+sudo reboot
 
-sudo curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/router.service -o /etc/systemd/system/router.service
+mkdir -p .wireguard/conf
 
-sudo systemctl daemon-reload
-sudo systemctl enable router.service
-sudo systemctl start router.service
+# ===========================
+# This is example file for WireGuard configuration
+# Copy real client data to ~/.wireguard/config/wg0.conf
+# tee .wireguard/config/wg0.conf > /dev/null <<EOF 
+# [Interface]
+# Address =
+# PrivateKey =
+# ListenPort =
+# DNS =
 
-curl -fsSL https://raw.githubusercontent.com/Mrkisha/travel-router/refs/heads/master/docker-compose.yaml -o docker-compose.yaml
+# [Peer]
+# PublicKey =
+# PresharedKey = 
+# Endpoint =
+# AllowedIPs =
+# EOF
+# ===========================
 
-echo "\e[36mCreate a file ~/.wireguard/config/wg0.conf\e[0m"
-echo "Run: sudo mkdir -p ~/.wireguard/config && sudo nano ~/.wireguard/config/wg0.conf"
-
-echo "Please reboot the system to apply changes..."
-echo "Run: sudo reboot"
+sudo nmcli device wifi rescan ifname wlan0
+# nmcli device wifi list ifname wlan0
+nmcli device wifi list
+sudo nmcli dev wifi connect "AndroidAP" password "1234567890" ifname wlan0

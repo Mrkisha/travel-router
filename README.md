@@ -1,1 +1,1 @@
-Need to add Wireguard client conf to `~/.wireguard/wg0.conf` file.
+Need to add Wireguard client conf to `~/.wireguard/config/wg0.conf` file.
